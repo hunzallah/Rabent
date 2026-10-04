@@ -4,7 +4,7 @@ import { ArrowRight, Box, Check, ChevronDown, Edit3, Plus, Search, ShoppingBag, 
 import { supabase } from '@/lib/supabase';
 import { type Product, type Category, type Order, type OrderItem, type AdminRole, ORDER_STATUSES, STATUS_STYLES, money, formatDate, formatTime } from '@/lib/types';
 
-type AdminView = 'overview' | 'orders' | 'products' | 'categories' | 'customers' | 'coupons' | 'banners' | 'reviews' | 'variants' | 'addresses';
+type AdminView = 'overview' | 'orders' | 'products' | 'categories' | 'customers' | 'coupons' | 'banners' | 'reviews' | 'variants' | 'addresses' | 'rates' | 'cities';
 
 const t = (key: string, label: string): Field => ({ key, label });
 const CRUD = {
@@ -12,6 +12,8 @@ const CRUD = {
   banners: { table: 'banners', fields: [{ ...t('title', 'Title'), required: true }, t('subtitle', 'Subtitle'), { key: 'active', label: 'Active', type: 'checkbox' }, { key: 'display_order', label: 'Order', type: 'number' }] as Field[] },
   reviews: { table: 'reviews', fields: [t('author', 'Author'), { key: 'rating', label: 'Rating', type: 'number' }, t('body', 'Review')] as Field[] },
   variants: { table: 'product_variants', fields: [{ key: 'product_id', label: 'Product', type: 'product' }, { ...t('size', 'Size'), required: true }, { ...t('color', 'Color (e.g. Grey)'), required: true }, { key: 'stock', label: 'Stock', type: 'number' }, { key: 'price_override', label: 'Price for this size', type: 'number', optional: true }] as Field[] },
+  rates: { table: 'delivery_rates', fields: [{ ...t('zone', 'Zone code'), required: true }, t('label', 'Label'), { key: 'rate_half', label: 'Up to 0.5 kg (Rs.)', type: 'number' }, { key: 'rate_one', label: 'Up to 1 kg (Rs.)', type: 'number' }, { key: 'rate_extra', label: 'Each extra kg (Rs.)', type: 'number' }, { key: 'min_fee', label: 'Minimum charge (Rs.)', type: 'number' }] as Field[] },
+  cities: { table: 'delivery_cities', fields: [{ ...t('city', 'City'), required: true }, { key: 'zone', label: 'Zone', type: 'select', options: ['city', 'region', 'region_ext', 'diff', 'diff_ext'] }] as Field[] },
   addresses: { table: 'addresses', fields: [t('label', 'Label'), t('address', 'Address'), t('city', 'City'), { key: 'latitude', label: 'Lat', type: 'number' }, { key: 'longitude', label: 'Lng', type: 'number' }] as Field[] },
 };
 export default function AdminDashboard({ onExit }: { onExit: () => void }) {
@@ -113,7 +115,7 @@ export default function AdminDashboard({ onExit }: { onExit: () => void }) {
           <button className={view === 'products' ? 'active' : ''} onClick={() => setView('products')}>
             <Package size={18} /> Products
           </button>
-          {isSuperAdmin && (['coupons','banners','reviews','variants','addresses'] as const).map((v) => <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}><span style={{textTransform:'capitalize'}}>{v}</span></button>)}
+          {isSuperAdmin && (['coupons','banners','reviews','variants','addresses','cities','rates'] as const).map((v) => <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}><span className="tab-label">{({ cities: 'Delivery zones', rates: 'Delivery rates' } as Record<string, string>)[v] ?? v.charAt(0).toUpperCase() + v.slice(1)}</span></button>)}
           {isSuperAdmin && (
             <button className={view === 'categories' ? 'active' : ''} onClick={() => setView('categories')}>
               <Tag size={18} /> Categories
@@ -125,12 +127,14 @@ export default function AdminDashboard({ onExit }: { onExit: () => void }) {
             </button>
           )}
         </nav>
-        <button className="admin-exit" onClick={onExit}>
-          <ArrowLeft size={16} /> Back to store
-        </button>
-        <button className="admin-signout" onClick={async () => { await supabase.auth.signOut(); onExit(); }}>
-          <LogOut size={16} /> Sign out
-        </button>
+        <div className="admin-sidebar-foot">
+          <button className="admin-exit" onClick={onExit}>
+            <ArrowLeft size={16} /> Back to store
+          </button>
+          <button className="admin-signout" onClick={async () => { await supabase.auth.signOut(); onExit(); }}>
+            <LogOut size={16} /> Sign out
+          </button>
+        </div>
       </aside>
 
       <div className="admin-main">
@@ -331,7 +335,9 @@ function OrderRow({ order, expanded, items, onToggle, canManage, onStatusChange 
                 <div><span className="admin-sub">Address</span><p>{order.address}{order.city ? `, ${order.city}` : ''}{order.postal_code ? ` ${order.postal_code}` : ''}</p></div>
                 <div><span className="admin-sub">Payment</span><p>{order.payment_method}</p></div>
                 <div><span className="admin-sub">Subtotal</span><p>{money(order.subtotal)}</p></div>
-                <div><span className="admin-sub">Delivery</span><p>{money(order.delivery_fee)}</p></div>
+                <div><span className="admin-sub">Delivery (customer paid)</span><p>{money(order.delivery_fee)}{order.cod_fee ? <small style={{display:'block'}}>6% COD charge counted: {money(order.cod_fee)}</small> : null}</p></div>
+                <div><span className="admin-sub">Parcel</span><p>{order.weight_kg ? `${order.weight_kg} kg` : '—'}{order.delivery_zone ? ` · ${order.delivery_zone}` : ''}</p></div>
+                {order.payment_reference && <div><span className="admin-sub">Easypaisa transaction ID</span><p><strong>{order.payment_reference}</strong></p></div>}
                 <div><span className="admin-sub">Total</span><p><strong>{money(order.total)}</strong></p></div>
               </div>
               <div className="order-items-list">
@@ -433,6 +439,7 @@ function ProductEditModal({ product, categories, onClose, onSaved, onToast }: {
     sizes: product?.sizes.join(', ') ?? 'S, M, L, XL',
     colors: product?.colors.join(', ') ?? 'Black',
     inventory: product?.inventory ?? 0,
+    weight_kg: product?.weight_kg ?? 0.5,
     featured: product?.featured ?? false,
     category_id: product?.category_id ?? categories[0]?.id ?? '',
     is_active: product?.is_active ?? true,
@@ -469,7 +476,7 @@ function ProductEditModal({ product, categories, onClose, onSaved, onToast }: {
     setSaving(true);
     const payload = {
       name: form.name,
-      slug: form.slug || form.name.toLowerCase().replace(/\s+/g, '-'),
+      slug: (form.slug || form.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
       description: form.description,
       price: Number(form.price),
       compare_at_price: form.compare_at_price ? Number(form.compare_at_price) : null,
@@ -477,6 +484,7 @@ function ProductEditModal({ product, categories, onClose, onSaved, onToast }: {
       sizes: form.sizes.split(',').map((s) => s.trim()).filter(Boolean),
       colors: form.colors.split(',').map((s) => s.trim()).filter(Boolean),
       inventory: Number(form.inventory),
+      weight_kg: Number(form.weight_kg) > 0 ? Number(form.weight_kg) : 0.5,
       featured: form.featured,
       category_id: form.category_id || null,
       is_active: form.is_active,
@@ -525,6 +533,7 @@ function ProductEditModal({ product, categories, onClose, onSaved, onToast }: {
                 ))}
               </div>
             </div>
+            <label>Weight (kg)<input type="number" min={0.05} step={0.05} required value={form.weight_kg} onChange={(e) => setForm({ ...form, weight_kg: Number(e.target.value) })} /></label>
             <label>Inventory<input type="number" value={form.inventory} onChange={(e) => setForm({ ...form, inventory: Number(e.target.value) })} required min={0} /></label>
             <label>Category
               <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}>
@@ -606,7 +615,7 @@ function CategoryEditModal({ category, onClose, onSaved, onToast }: {
     setSaving(true);
     const payload = {
       name: form.name,
-      slug: form.slug || form.name.toLowerCase().replace(/\s+/g, '-'),
+      slug: (form.slug || form.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
       display_order: Number(form.display_order),
     };
     const { error } = category

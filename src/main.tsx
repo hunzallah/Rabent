@@ -1,7 +1,9 @@
 import { Component, StrictMode, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
+import '@fontsource-variable/archivo/wdth.css';
 import './index.css';
+import './storefront.css';
 
 class Boundary extends Component<{ children: ReactNode }, { err: Error | null }> {
   state = { err: null as Error | null };

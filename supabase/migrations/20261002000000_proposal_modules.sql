@@ -51,3 +51,32 @@ GRANT EXECUTE ON FUNCTION finalize_order TO anon, authenticated;
 
 INSERT INTO banners (title, subtitle) SELECT 'New season, new Rabbent', 'Free delivery over Rs. 8,000' WHERE NOT EXISTS (SELECT 1 FROM banners);
 INSERT INTO coupons (code, percent_off) VALUES ('WELCOME10', 10) ON CONFLICT DO NOTHING;
+
+-- Prices are now decided by the database (product price, or the size-specific variant price), never by the browser.
+CREATE OR REPLACE FUNCTION place_order(p_items jsonb, p_customer_name text, p_email text, p_phone text, p_address text, p_city text DEFAULT '', p_postal_code text DEFAULT '', p_payment_method text DEFAULT 'Cash on Delivery', p_customer_id uuid DEFAULT NULL, p_delivery_fee numeric DEFAULT 250)
+RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_order_id uuid; v_item jsonb; v_product products%ROWTYPE; v_subtotal numeric := 0; v_qty integer; v_price numeric;
+BEGIN
+  IF jsonb_array_length(p_items) = 0 THEN RAISE EXCEPTION 'Cart is empty'; END IF;
+  FOR v_item IN SELECT jsonb_array_elements(p_items) LOOP
+    SELECT * INTO v_product FROM products WHERE id = (v_item->>'product_id')::uuid AND is_active = true FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Product % is no longer available', v_item->>'product_name'; END IF;
+    v_qty := (v_item->>'quantity')::integer;
+    IF v_qty < 1 THEN RAISE EXCEPTION 'Invalid quantity'; END IF;
+    IF v_product.inventory < v_qty THEN RAISE EXCEPTION 'Not enough stock for %. Available: %, requested: %', v_product.name, v_product.inventory, v_qty; END IF;
+    SELECT price_override INTO v_price FROM product_variants WHERE product_id = v_product.id AND lower(size) = lower(v_item->>'size') AND price_override IS NOT NULL ORDER BY (lower(color) = lower(coalesce(v_item->>'color',''))) DESC LIMIT 1;
+    v_subtotal := v_subtotal + coalesce(v_price, v_product.price) * v_qty;
+  END LOOP;
+  INSERT INTO orders (customer_name, email, phone, address, city, postal_code, payment_method, status, subtotal, delivery_fee, total, customer_id)
+  VALUES (p_customer_name, p_email, p_phone, p_address, p_city, p_postal_code, p_payment_method, 'pending', v_subtotal, p_delivery_fee, v_subtotal + p_delivery_fee, p_customer_id) RETURNING id INTO v_order_id;
+  FOR v_item IN SELECT jsonb_array_elements(p_items) LOOP
+    v_qty := (v_item->>'quantity')::integer;
+    SELECT * INTO v_product FROM products WHERE id = (v_item->>'product_id')::uuid;
+    SELECT price_override INTO v_price FROM product_variants WHERE product_id = v_product.id AND lower(size) = lower(v_item->>'size') AND price_override IS NOT NULL ORDER BY (lower(color) = lower(coalesce(v_item->>'color',''))) DESC LIMIT 1;
+    INSERT INTO order_items (order_id, product_id, product_name, size, color, quantity, unit_price)
+    VALUES (v_order_id, v_product.id, v_product.name, v_item->>'size', v_item->>'color', v_qty, coalesce(v_price, v_product.price));
+    UPDATE products SET inventory = inventory - v_qty WHERE id = v_product.id;
+  END LOOP;
+  RETURN v_order_id;
+END $$;
+GRANT EXECUTE ON FUNCTION place_order(jsonb, text, text, text, text, text, text, text, uuid, numeric) TO anon, authenticated;

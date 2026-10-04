@@ -12,6 +12,7 @@ export type Product = {
   featured: boolean;
   category_id: string | null;
   is_active: boolean;
+  weight_kg?: number;
 };
 
 export type Category = {
@@ -45,6 +46,10 @@ export type Order = {
   total: number;
   created_at: string;
   customer_id: string | null;
+  weight_kg?: number;
+  delivery_zone?: string | null;
+  cod_fee?: number;
+  payment_reference?: string | null;
 };
 
 export type OrderItem = {

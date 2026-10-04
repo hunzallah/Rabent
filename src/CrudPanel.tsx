@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
-export type Field = { key: string; label: string; type?: 'text' | 'product' | 'number' | 'checkbox' | 'datetime-local'; required?: boolean; optional?: boolean };
+export type Field = { key: string; label: string; type?: 'text' | 'product' | 'select' | 'number' | 'checkbox' | 'datetime-local'; required?: boolean; optional?: boolean; options?: string[] };
 type Row = Record<string, unknown> & { id: string };
 
 // One reusable admin Create/Read/Update/Delete screen for a table.
@@ -35,7 +35,9 @@ export default function CrudPanel({ table, fields, readOnlyCreate = false, onToa
   return <div className="admin-card">
     {!readOnlyCreate && <form onSubmit={save} className="admin-form-grid" style={{ marginBottom: 16 }}>
       {fields.map((f) => <label key={f.key}>{f.label}
-        {f.type === 'product'
+        {f.type === 'select'
+          ? <select required value={String(form[f.key] ?? '')} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}><option value="">Choose…</option>{(f.options || []).map((o) => <option key={o} value={o}>{o}</option>)}</select>
+          : f.type === 'product'
           ? <select required value={String(form[f.key] ?? '')} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}><option value="">Choose product</option>{products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
           : f.type === 'checkbox'
           ? <input type="checkbox" checked={Boolean(form[f.key])} onChange={(e) => setForm({ ...form, [f.key]: e.target.checked })} />

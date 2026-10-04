@@ -705,17 +705,22 @@ footer {
   position: sticky;
   top: 0;
   height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
 }
-.admin-brand { margin-bottom: 36px; }
+.admin-brand { margin-bottom: 20px; flex-shrink: 0; }
 .admin-logo { font-size: 1.35rem; font-weight: 700; letter-spacing: 0.04em; }
 .admin-logo span { color: rgba(255,255,255,0.4); }
 .admin-sublabel { font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(255,255,255,0.4); margin-top: 6px; }
-.admin-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.admin-nav { display: flex; flex-direction: column; gap: 2px; flex: 0 0 auto; margin-bottom: 12px; }
+/* Back to store / Sign out always stay visible at the bottom of the sidebar */
+.admin-sidebar-foot { margin-top: auto; position: sticky; bottom: 0; background: var(--ink); padding: 10px 0 2px; border-top: 1px solid rgba(255,255,255,0.1); }
+.admin-exit, .admin-signout { flex-shrink: 0; }
 .admin-nav button {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 9px 16px;
   border-radius: 12px;
   font-size: 0.9rem;
   font-weight: 500;
@@ -1173,9 +1178,11 @@ footer {
   }
   .admin-brand { margin-bottom: 0; margin-right: auto; }
   .admin-sublabel { display: none; }
-  .admin-nav { flex-direction: row; gap: 4px; }
+  .admin-sidebar { height: auto; overflow: visible; }
+  .admin-nav { flex: 1 1 auto; min-width: 0; flex-direction: row; gap: 4px; overflow-y: visible; overflow-x: auto; margin-bottom: 0; }
+  .admin-sidebar-foot { display: flex; gap: 4px; margin: 0; padding: 0; border: none; position: static; background: transparent; }
   .admin-nav button { padding: 8px 12px; font-size: 0.82rem; }
-  .admin-nav button span { display: none; }
+  .admin-nav button span:not(.tab-label) { display: none; }
   .admin-badge { display: none; }
   .admin-exit { padding: 8px 12px; }
   .admin-main { padding: 24px 16px; }
@@ -1186,4 +1193,26 @@ footer {
   .admin-table tbody tr { display: block; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; padding: 12px; }
   .admin-table tbody td { display: flex; justify-content: space-between; border-bottom: none; padding: 6px 0; }
   .admin-table .admin-sub { margin-left: auto; }
+}
+
+/* WhatsApp button and Easypaisa payment panel */
+.whatsapp-fab { position: fixed; right: 20px; bottom: 20px; z-index: 60; width: 56px; height: 56px; border-radius: 50%; background: #25d366; color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(0,0,0,.25); transition: transform .15s ease; }
+.whatsapp-fab:hover { transform: scale(1.06); }
+.pay-panel { background: #f3f1ec; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+.pay-panel p { margin: 0 0 4px; }
+.pay-panel label { display: block; margin-top: 10px; }
+.pay-panel small { display: block; margin-top: 8px; opacity: .7; }
+.pay-number { font-size: 1.35rem; font-weight: 700; letter-spacing: .04em; }
+.pay-name { opacity: .75; font-size: .9rem; }
+.pay-summary { display: grid; gap: 6px; margin-bottom: 8px; font-size: .95rem; }
+.pay-summary > div { display: flex; justify-content: space-between; }
+
+/* Short browser windows: tighten the admin menu so every tab fits without scrolling */
+@media (min-width: 769px) and (max-height: 820px) {
+  .admin-sidebar { padding: 18px 16px; }
+  .admin-brand { margin-bottom: 10px; }
+  .admin-nav { gap: 0; margin-bottom: 8px; }
+  .admin-nav button { padding: 6px 14px; font-size: 0.85rem; }
+  .admin-exit, .admin-signout { padding: 7px 14px; }
+  .admin-signout { margin-top: 2px; }
 }
